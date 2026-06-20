@@ -1,0 +1,49 @@
+{
+  "name": "agentic-rss-parser",
+  "version": "1.0.1",
+  "type": "module",
+  "description": "An open-source agentic RSS parser and tool server for Node.js.",
+  "license": "MIT",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bluecarbons/BLUECARBONS-RSS-PARSER.git"
+  },
+  "homepage": "https://github.com/bluecarbons/BLUECARBONS-RSS-PARSER#readme",
+  "bugs": {
+    "url": "https://github.com/bluecarbons/BLUECARBONS-RSS-PARSER/issues"
+  },
+  "bin": {
+    "agentic-rss-parser": "./src/cli.js",
+    "agentic-rss-mcp": "./src/mcp/server.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./cli": "./src/cli.js",
+    "./mcp": "./src/mcp/server.js"
+  },
+  "scripts": {
+    "start": "node ./src/cli.js",
+    "mcp": "node ./src/mcp/server.js",
+    "test": "node --test",
+    "lint": "node --check ./src/cli.js"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE",
+    "CONTRIBUTING.md"
+  ],
+  "dependencies": {
+    "@ai-sdk/anthropic": "3.0.85",
+    "@ai-sdk/openai": "3.0.73",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ai": "6.0.208",
+    "rss-parser": "3.13.0",
+    "zod": "4.4.3"
+  }
+}
