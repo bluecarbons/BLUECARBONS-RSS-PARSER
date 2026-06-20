@@ -4,40 +4,40 @@
 [![npm version](https://img.shields.io/npm/v/agentic-rss-parser.svg)](https://www.npmjs.com/package/agentic-rss-parser)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-Agentic RSS Parser is a from-scratch Node.js library for reading RSS and Atom feeds, normalizing them into a familiar parser API, and optionally running agentic analysis on top of the feed items.
+Agentic RSS Parser is a from-scratch Node.js library for parsing RSS and Atom feeds, normalizing them into a familiar `Parser` API, and optionally running agentic analysis on top of feed items.
 
-Supported Node.js version:
+## Supported Environments
 
 - Node.js `>=22.5.0`
+- ESM-only package
+- Linux, macOS, and Windows
 
-Why:
+Why Node.js 22.5.0 or newer:
 
-- the project uses the built-in `node:sqlite` module, which was added in Node.js 22.5.0
-- Node 20 does not include `node:sqlite`, so it will fail in CI and at runtime
+- the project uses the built-in `node:sqlite` module
+- `node:sqlite` was added in Node.js 22.5.0
+- Node.js 20 does not support the current codebase
 
-It is designed for three use cases:
+## Design Goals
 
-- as a drop-in migration path for `rss-parser`-style code
-- as a programmatic feed engine for Node.js and TypeScript apps
-- as an agent-facing tool layer for workflows, automations, and IDE integrations
-
-Built-in principles:
-
-- modern XML parsing using `fast-xml-parser`
+- compatible migration path for `rss-parser`-style code
+- small, well-documented public API
+- modern XML parsing with `fast-xml-parser`
 - conservative normalization for compatibility
-- opt-in agentic behavior, never forced
-- small public surface area with documented defaults
+- agentic features are opt-in, not forced
 - no dependency on the deprecated `rss-parser` package
 
-## What It Does
+## Features
 
 - parses RSS 2.0 and Atom feeds
-- returns normalized feed and item objects
 - supports `Parser`, `parseURL`, `parseString`, and `parseFile`
-- keeps item deduplication in SQLite for agentic workflows
-- fetches full article text when summaries are too short
-- supports provider-based analysis with OpenAI-compatible and Anthropic-compatible adapters
-- exposes an MCP transport for agent-friendly integrations
+- normalizes output into stable feed and item objects
+- supports callback and promise styles
+- supports `customFields`, `timeout`, `headers`, `maxRedirects`, `requestOptions`, `defaultRSS`, and `xml2js`
+- deduplicates processed items with SQLite
+- enriches summaries with full article text
+- supports provider-backed analysis with OpenAI-compatible and Anthropic-compatible adapters
+- exposes a CLI and MCP tool entrypoint
 
 ## Installation
 
@@ -45,10 +45,12 @@ Built-in principles:
 npm install agentic-rss-parser
 ```
 
-## Quick Start
+## Usage
+
+### Parse a feed
 
 ```js
-import Parser, { runAgenticParser } from 'agentic-rss-parser';
+import Parser from 'agentic-rss-parser';
 
 const parser = new Parser({
   timeout: 10000,
@@ -57,56 +59,70 @@ const parser = new Parser({
 
 const feed = await parser.parseURL('https://news.ycombinator.com/rss');
 console.log(feed.title);
-
-const results = await runAgenticParser({
-  feedUrls: ['https://news.ycombinator.com/rss'],
-  dbPath: './data/rss-agent.db',
-  fetchFullArticle: false
-});
-
-console.log(results.length);
 ```
 
-## API
-
-The package exports a `Parser` class for migration-friendly code paths.
+### Use the compatibility API
 
 ```js
 import Parser from 'agentic-rss-parser';
 
 const parser = new Parser({
   customFields: {
-    feed: ['foo'],
     item: [['dc:creator', 'creator']]
-  },
-  timeout: 1000,
-  headers: { 'User-Agent': 'my-app' }
+  }
 });
 
-const feed = await parser.parseURL('https://www.reddit.com/.rss');
-console.log(feed.title);
-console.log(feed.items[0].title);
+const feed = await parser.parseString(xml);
+console.log(feed.items[0].creator);
 ```
 
-Callback style is supported for compatibility:
+### Callback style
 
 ```js
 const parser = new Parser();
+
 parser.parseString(xml, (err, feed) => {
   if (err) throw err;
   console.log(feed.title);
 });
 ```
 
-### Migration From `rss-parser`
-
-Most existing code should keep working with a one-line import change:
+### Parse from a file
 
 ```js
-// Before
-import Parser from 'rss-parser';
+import Parser from 'agentic-rss-parser';
 
-// After
+const parser = new Parser();
+const feed = await parser.parseFile('./feed.xml');
+```
+
+### Agentic workflow
+
+```js
+import { runAgenticParser } from 'agentic-rss-parser';
+
+const results = await runAgenticParser({
+  feedUrls: ['https://news.ycombinator.com/rss'],
+  dbPath: './data/rss-agent.db',
+  fetchFullArticle: true,
+  model: {
+    provider: 'openai',
+    model: 'gpt-4o-mini'
+  }
+});
+
+for (const entry of results) {
+  if (entry.analysis.decision === 'relevant') {
+    console.log(entry.analysis.summary);
+  }
+}
+```
+
+## Migration From `rss-parser`
+
+Most existing code can switch imports with minimal changes:
+
+```js
 import Parser from 'agentic-rss-parser';
 ```
 
@@ -128,52 +144,10 @@ Supported XML shapes:
 
 - RSS 2.0 feeds with `<item>` entries
 - Atom feeds with `<entry>` entries
-- common namespaced fields like `dc:creator` and `content:encoded`
-- feeds with repeated tags, attributes, and CDATA
+- namespaced fields like `dc:creator` and `content:encoded`
+- repeated tags, attributes, and CDATA
 
-The compatibility layer is intentionally conservative: it normalizes output into familiar `rss-parser`-style feed and item objects while keeping the agentic features available through the same package.
-
-Agentic features remain opt-in:
-
-- `parseFeed(...)`
-- provider-based analysis
-- deduplication storage
-- MCP tool server
-
-## Agentic Features
-
-The agentic workflow is built for higher-level automation:
-
-- dedupe items by stable IDs
-- enrich short summaries with full article text
-- classify feeds via pluggable model providers
-- persist processed state in SQLite
-- emit structured analysis objects for downstream routing
-
-Example:
-
-```js
-import { runAgenticParser } from 'agentic-rss-parser';
-
-const results = await runAgenticParser({
-  feedUrls: [
-    'https://news.ycombinator.com/rss',
-    'https://hnrss.org/frontpage'
-  ],
-  dbPath: './data/rss-agent.db',
-  fetchFullArticle: true,
-  model: {
-    provider: 'openai',
-    model: 'gpt-4o-mini'
-  }
-});
-
-for (const entry of results) {
-  if (entry.analysis.decision === 'relevant') {
-    console.log(entry.analysis.summary);
-  }
-}
-```
+The compatibility layer normalizes output into familiar feed and item objects while preserving the agentic feature set.
 
 ## CLI
 
@@ -181,7 +155,7 @@ for (const entry of results) {
 npx agentic-rss-parser --feed https://news.ycombinator.com/rss
 ```
 
-Multiple feeds are supported:
+Multiple feeds:
 
 ```bash
 npx agentic-rss-parser \
@@ -196,8 +170,6 @@ npx agentic-rss-parser \
 npx agentic-rss-mcp --feed https://news.ycombinator.com/rss
 ```
 
-This project exposes an MCP server entrypoint for agent-facing clients. The implementation is intentionally minimal and can be wired into desktop or automation clients that speak stdio-based tool protocols.
-
 ## Development
 
 ```bash
@@ -208,17 +180,11 @@ npm test
 ## Project Structure
 
 - `src/core/parser.js`: XML parsing and normalization
-- `src/compat.js`: `rss-parser` compatibility surface
+- `src/core/http.js`: redirect-aware feed fetching
+- `src/compat.js`: `Parser` compatibility surface
 - `src/parser.js`: agentic feed pipeline
 - `src/adapters/provider.js`: model provider adapters
 - `src/mcp/server.js`: MCP entrypoint
-
-## Implementation Notes
-
-- feed fetching uses native `fetch`
-- parser requests support headers, request options, and timeout handling
-- output is normalized into stable feed/item objects instead of exposing raw XML shapes
-- SQLite is used only for deduplication and analysis persistence
 
 ## Security
 
@@ -229,11 +195,3 @@ npm test
 ## Contributing
 
 Please read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request.
-
-## Roadmap
-
-- pluggable LLM analyzers
-- official MCP protocol transport
-- OPML import/export
-- feed health monitoring
-- webhook and queue integrations
