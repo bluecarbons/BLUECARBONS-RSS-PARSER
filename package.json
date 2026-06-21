@@ -32,8 +32,8 @@
     "url": "https://github.com/bluecarbons/agentic-rss-parser/issues"
   },
   "bin": {
-    "agentic-rss-parser": "./src/cli.js",
-    "agentic-rss-mcp": "./src/mcp/server.js"
+    "agentic-rss-parser": "./bin/agentic-rss-parser.js",
+    "agentic-rss-mcp": "./bin/agentic-rss-mcp.js"
   },
   "exports": {
     ".": {
@@ -51,6 +51,7 @@
   },
   "packageManager": "pnpm@9.15.4",
   "files": [
+    "bin",
     "src",
     "examples",
     "README.md",
