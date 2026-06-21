@@ -5,7 +5,6 @@ This folder shows a few common ways to use `agentic-rss-parser`.
 ## Files
 
 - `direct.mjs`: basic library usage from Node.js
-- `adk-tool.mjs`: a lightweight tool wrapper pattern for agent frameworks
 - `adk-real.mjs`: a more concrete example using `@google/adk`
 
 ## Notes
