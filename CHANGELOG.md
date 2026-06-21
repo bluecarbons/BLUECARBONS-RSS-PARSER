@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.7
+
+- Bugs fixes and enhancements.
+
+## 1.0.6
+
+- Bugs fixes and enhancements.
+
 ## 1.0.4
 
 - Bugs fixes and enhancements.

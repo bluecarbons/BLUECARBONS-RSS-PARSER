@@ -213,13 +213,13 @@ The compatibility layer normalizes output into familiar feed and item objects wh
 ## CLI
 
 ```bash
-npx agentic-rss-parser --feed https://news.ycombinator.com/rss
+npx agentic-rss --feed https://news.ycombinator.com/rss
 ```
 
 Multiple feeds:
 
 ```bash
-npx agentic-rss-parser \
+npx agentic-rss \
   --feed https://news.ycombinator.com/rss \
   --feed https://hnrss.org/frontpage \
   --db ./data/rss-agent.db

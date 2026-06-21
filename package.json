@@ -1,6 +1,6 @@
 {
   "name": "agentic-rss-parser",
-  "version": "1.0.5",
+  "version": "1.0.7",
   "type": "module",
   "engines": {
     "node": ">=22.5.0"
@@ -32,8 +32,8 @@
     "url": "https://github.com/bluecarbons/agentic-rss-parser/issues"
   },
   "bin": {
-    "agentic-rss": "./agentic-rss-parser",
-    "agentic-rss-mcp": "./agentic-rss-mcp"
+    "agentic-rss": "bin/agentic-rss.js",
+    "agentic-rss-mcp": "bin/agentic-rss-mcp.js"
   },
   "exports": {
     ".": {
@@ -53,8 +53,7 @@
   },
   "packageManager": "pnpm@9.15.4",
   "files": [
-    "agentic-rss-parser",
-    "agentic-rss-mcp",
+    "bin",
     "src",
     "examples",
     "README.md",
