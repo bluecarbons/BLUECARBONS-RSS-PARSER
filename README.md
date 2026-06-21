@@ -258,6 +258,7 @@ pnpm test
 - dependency updates should be reviewed before release
 - `npm audit` should stay clean before merging
 - release steps are documented in [PUBLISHING.md](./PUBLISHING.md)
+- pnpm supply-chain settings are enforced in [pnpm-workspace.yaml](./pnpm-workspace.yaml)
 
 ## Project Structure
 

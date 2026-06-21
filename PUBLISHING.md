@@ -37,3 +37,4 @@ corepack pnpm publish --access public
 - `publishConfig.access` is already set to `public`
 - the package is configured for ESM and requires Node.js `>=22.5.0`
 - the CLI shims are included at the package root for clean publishing
+- pnpm supply-chain settings are documented in `pnpm-workspace.yaml`

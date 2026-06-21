@@ -26,6 +26,11 @@ Instead:
 - prefer local stdio MCP when possible over exposed remote transports
 - do not trust tool descriptions or tool names from unvetted MCP servers
 - treat feed content as untrusted input, especially when it can influence agent prompts
+- lock dependency versions with a committed lockfile
+- keep postinstall scripts disabled in CI
+- avoid exotic transitive dependencies
+- delay dependency updates with pnpm minimum release age
+- enforce trust policy checks with pnpm
 
 ## Threat Model Notes
 

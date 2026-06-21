@@ -18,7 +18,8 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
-      - run: npm install
+      - run: npm ci --ignore-scripts
+      - run: corepack pnpm install --frozen-lockfile --ignore-scripts
       - run: npm test
       - run: npm audit --audit-level=high
       - run: npm pack --dry-run

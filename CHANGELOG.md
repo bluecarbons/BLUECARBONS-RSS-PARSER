@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.2
+
+### Changed
+
+- prepared the package for pnpm publication with supply-chain hardening and reproducible lockfiles
+- added enterprise-oriented repo hygiene, security, and publishing documentation
+
+### Notes
+
+- no runtime API changes intended
+
 ## 1.0.1
 
 ### Added
