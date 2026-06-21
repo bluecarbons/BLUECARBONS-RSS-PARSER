@@ -21,8 +21,7 @@ corepack pnpm publish --dry-run --access public
 ## Publish to npm
 
 ```bash
-npm login
-npm publish --access public
+npm run release:npm
 ```
 
 ## Publish with pnpm
@@ -39,3 +38,4 @@ pnpm run release:pnpm
 - the CLI shims are included at the package root for clean publishing
 - pnpm supply-chain settings are documented in `pnpm-workspace.yaml`
 - `release:pnpm` uses `--no-git-checks` so the release command is deterministic from the current repo state
+- `release:npm` keeps the npm path aligned with the pnpm release flow

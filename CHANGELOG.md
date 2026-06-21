@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.4
+
+- release metadata cleanup
+- added a dedicated npm release script alongside pnpm
+
 ## 1.0.3
 
 - published as the next patch release after registry verification
