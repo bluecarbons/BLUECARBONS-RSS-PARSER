@@ -1,12 +1,12 @@
 # Agentic RSS Parser
 
-[![CI](https://github.com/bluecarbons/BLUECARBONS-RSS-PARSER/actions/workflows/ci.yml/badge.svg)](https://github.com/bluecarbons/BLUECARBONS-RSS-PARSER/actions/workflows/ci.yml)
+[![CI](https://github.com/bluecarbons/agentic-rss-parser/actions/workflows/ci.yml/badge.svg)](https://github.com/bluecarbons/agentic-rss-parser/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/agentic-rss-parser.svg)](https://www.npmjs.com/package/agentic-rss-parser)
 [![Node.js >= 22.5](https://img.shields.io/badge/node-%3E%3D22.5.0-339933)](./SUPPORT.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Open Source](https://img.shields.io/badge/open%20source-yes-brightgreen)](./LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/bluecarbons/BLUECARBONS-RSS-PARSER?style=social)](https://github.com/bluecarbons/BLUECARBONS-RSS-PARSER)
-[![GitHub issues](https://img.shields.io/github/issues/bluecarbons/BLUECARBONS-RSS-PARSER)](https://github.com/bluecarbons/BLUECARBONS-RSS-PARSER/issues)
+[![GitHub stars](https://img.shields.io/github/stars/bluecarbons/agentic-rss-parser?style=social)](https://github.com/bluecarbons/agentic-rss-parser)
+[![GitHub issues](https://img.shields.io/github/issues/bluecarbons/agentic-rss-parser)](https://github.com/bluecarbons/agentic-rss-parser/issues)
 
 Agentic RSS Parser is a from-scratch Node.js library for parsing RSS and Atom feeds, normalizing them into a familiar `Parser` API, and optionally running agentic analysis on top of feed items.
 

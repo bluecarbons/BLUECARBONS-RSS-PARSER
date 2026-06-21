@@ -25,11 +25,11 @@
   "types": "./src/index.d.ts",
   "repository": {
     "type": "git",
-    "url": "https://github.com/bluecarbons/BLUECARBONS-RSS-PARSER.git"
+    "url": "https://github.com/bluecarbons/agentic-rss-parser.git"
   },
-  "homepage": "https://github.com/bluecarbons/BLUECARBONS-RSS-PARSER#readme",
+  "homepage": "https://github.com/bluecarbons/agentic-rss-parser#readme",
   "bugs": {
-    "url": "https://github.com/bluecarbons/BLUECARBONS-RSS-PARSER/issues"
+    "url": "https://github.com/bluecarbons/agentic-rss-parser/issues"
   },
   "bin": {
     "agentic-rss-parser": "./src/cli.js",
