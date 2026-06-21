@@ -49,6 +49,10 @@ Why Node.js 22.5.0 or newer:
 npm install agentic-rss-parser
 ```
 
+```bash
+pnpm add agentic-rss-parser
+```
+
 ## Usage
 
 ### Parse a feed
@@ -241,6 +245,11 @@ What it does not do yet:
 ```bash
 npm install
 npm test
+```
+
+```bash
+pnpm install
+pnpm test
 ```
 
 ## Package Health

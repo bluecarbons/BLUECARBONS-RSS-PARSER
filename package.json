@@ -18,6 +18,9 @@
     "open-source"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "repository": {
@@ -46,6 +49,7 @@
     "test": "node --test",
     "lint": "node --check ./src/cli.js"
   },
+  "packageManager": "pnpm@9.15.4",
   "files": [
     "src",
     "examples",
