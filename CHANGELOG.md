@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.3
+
+- published as the next patch release after registry verification
+
 ## 1.0.2
 
 ### Changed

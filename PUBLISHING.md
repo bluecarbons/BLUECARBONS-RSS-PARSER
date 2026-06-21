@@ -28,7 +28,7 @@ npm publish --access public
 ## Publish with pnpm
 
 ```bash
-corepack pnpm publish --access public
+pnpm run release:pnpm
 ```
 
 ## Notes
@@ -38,3 +38,4 @@ corepack pnpm publish --access public
 - the package is configured for ESM and requires Node.js `>=22.5.0`
 - the CLI shims are included at the package root for clean publishing
 - pnpm supply-chain settings are documented in `pnpm-workspace.yaml`
+- `release:pnpm` uses `--no-git-checks` so the release command is deterministic from the current repo state

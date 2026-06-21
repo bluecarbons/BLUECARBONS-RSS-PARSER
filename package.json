@@ -1,6 +1,6 @@
 {
   "name": "agentic-rss-parser",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "engines": {
     "node": ">=22.5.0"
@@ -47,7 +47,8 @@
     "start": "node ./src/cli.js",
     "mcp": "node ./src/mcp/server.js",
     "test": "node --test",
-    "lint": "node --check ./src/cli.js"
+    "lint": "node --check ./src/cli.js",
+    "release:pnpm": "corepack pnpm publish --access public --no-git-checks"
   },
   "packageManager": "pnpm@9.15.4",
   "files": [
