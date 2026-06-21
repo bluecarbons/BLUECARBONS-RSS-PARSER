@@ -120,6 +120,31 @@ for (const entry of results) {
 }
 ```
 
+## Works With Google ADK And Other Agent Frameworks
+
+Agentic RSS Parser is designed to complement agent frameworks, not replace them.
+
+Use it when you want:
+
+- feed ingestion and normalization
+- `rss-parser`-style compatibility for existing code
+- deduplication and article enrichment
+- a clean, agent-ready tool surface
+
+It fits naturally alongside frameworks like Google ADK, where the framework handles agent orchestration and this package handles RSS and Atom data retrieval, normalization, and enrichment.
+
+Typical integration patterns:
+
+- call the library directly from a Node.js tool or workflow
+- wrap `Parser` or `runAgenticParser` inside an ADK custom tool
+- expose the parser through MCP for agent clients that prefer tool protocols
+
+Mental model:
+
+- ADK decides what to do
+- Agentic RSS Parser gathers, normalizes, deduplicates, and enriches the feed data
+- ADK or another orchestrator uses the structured result to continue the workflow
+
 ## Migration From `rss-parser`
 
 Most existing code can switch imports with minimal changes:
