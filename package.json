@@ -1,11 +1,11 @@
 {
   "name": "agentic-rss-parser",
-  "version": "1.0.8",
+  "version": "1.1.0",
   "type": "module",
   "engines": {
     "node": ">=22.5.0"
   },
-  "description": "An open-source agentic RSS parser and tool server for Node.js.",
+  "description": "An open-source agentic RSS and Atom parser with heuristic + LLM analysis, deduplication, enrichment, and MCP-ready tooling.",
   "keywords": [
     "rss",
     "atom",
@@ -41,13 +41,16 @@
       "default": "./src/index.js"
     },
     "./cli": "./src/cli.js",
-    "./mcp": "./src/mcp/server.js"
+    "./mcp": {
+      "types": "./src/mcp/server.d.ts",
+      "default": "./src/mcp/server.js"
+    }
   },
   "scripts": {
     "start": "node ./src/cli.js",
     "mcp": "node ./src/mcp/server.js",
     "test": "node --test",
-    "lint": "node --check ./src/cli.js",
+    "lint": "node --check ./src/index.js ./src/agent.js ./src/parser.js ./src/storage.js ./src/compat.js ./src/tools.js ./src/fetch-article.js ./src/cli.js ./src/core/http.js ./src/core/parser.js ./src/adapters/provider.js ./src/mcp/server.js",
     "release:npm": "npm publish --access public",
     "release:pnpm": "corepack pnpm publish --access public --no-git-checks"
   },
@@ -63,5 +66,11 @@
     "CHANGELOG.md",
     "LICENSE",
     "CONTRIBUTING.md"
-  ]
+  ],
+  "socket": {
+    "ignore": {
+      "envVars": true,
+      "networkAccess": true
+    }
+  }
 }

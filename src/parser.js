@@ -7,7 +7,10 @@ import { fetchTextWithRedirects } from './core/http.js';
 
 function normalizeItem(feedUrl, item) {
   const link = item.link || item.guid || '';
-  const id = crypto.createHash('sha256').update(`${feedUrl}:${link || item.title}`).digest('hex');
+  const id = crypto
+    .createHash('sha256')
+    .update(`${feedUrl}:${link || item.title}`)
+    .digest('hex');
   return {
     id,
     feedUrl,
@@ -21,34 +24,39 @@ function normalizeItem(feedUrl, item) {
 export async function runAgenticParser(config) {
   const storage = createStorage(config.dbPath);
   const results = [];
-  const analyzer = config.analyzer ?? await createAnalyzer(config.model);
+  const analyzer = config.analyzer ?? (await createAnalyzer(config.model));
   const concurrency = normalizeConcurrency(config.concurrency);
 
   try {
-    const feedRuns = await mapWithConcurrency(config.feedUrls, concurrency, async (feedUrl) => {
-      const xml = await fetchTextWithRedirects(feedUrl, config.parserOptions);
-      const feed = await parseFeedXml(xml, config.parserOptions);
-      const feedResults = [];
+    const feedRuns = await mapWithConcurrency(
+      config.feedUrls,
+      concurrency,
+      async (feedUrl) => {
+        const xml = await fetchTextWithRedirects(feedUrl, config.parserOptions);
+        // parseFeedXml is synchronous — no await needed
+        const feed = parseFeedXml(xml, config.parserOptions);
+        const feedResults = [];
 
-      for (const item of feed.items) {
-        const normalized = normalizeItem(feedUrl, item);
-        if (storage.hasProcessed(normalized.id)) continue;
+        for (const item of feed.items) {
+          const normalized = normalizeItem(feedUrl, item);
+          if (storage.hasProcessed(normalized.id)) continue;
 
-        const analysis = await analyzeFeedItem(normalized, {
-          fetchFullArticle: config.fetchFullArticle,
-          analyzer
-        });
+          const analysis = await analyzeFeedItem(normalized, {
+            fetchFullArticle: config.fetchFullArticle,
+            analyzer
+          });
 
-        storage.markProcessed(normalized);
-        storage.saveAnalysis(normalized.id, {
-          id: crypto.randomUUID(),
-          ...analysis
-        });
-        feedResults.push({ item: normalized, analysis });
+          storage.markProcessed(normalized);
+          storage.saveAnalysis(normalized.id, {
+            id: crypto.randomUUID(),
+            ...analysis
+          });
+          feedResults.push({ item: normalized, analysis });
+        }
+
+        return feedResults;
       }
-
-      return feedResults;
-    });
+    );
 
     results.push(...feedRuns.flat());
     return results;

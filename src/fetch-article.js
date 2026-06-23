@@ -1,3 +1,5 @@
+import { fetchTextWithRedirects } from './core/http.js';
+
 const MAX_SNIPPET_CHARS = 1200;
 
 function stripHtml(html) {
@@ -10,20 +12,25 @@ function stripHtml(html) {
     .trim();
 }
 
+/**
+ * Fetch a remote article URL and return a plain-text snippet.
+ *
+ * Delegates to fetchTextWithRedirects so all requests share the same
+ * safety guarantees: 10 s timeout, max-5-redirect cap, http/https
+ * protocol enforcement, and a consistent user-agent.
+ *
+ * @param {string} url - The article URL to fetch.
+ * @returns {Promise<string>} Plain-text snippet, capped at MAX_SNIPPET_CHARS.
+ */
 export async function fetchFullArticle(url) {
-  const response = await fetch(url, {
-    headers: {
-      'user-agent': 'agentic-rss-parser/1.0 (+https://example.local)'
-    }
+  const body = await fetchTextWithRedirects(url, {
+    timeout: 10000,
+    maxRedirects: 5
   });
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch article: ${response.status} ${response.statusText}`);
-  }
-
-  const contentType = response.headers.get('content-type') || '';
-  const body = await response.text();
-  const plainText = contentType.includes('text/html') ? stripHtml(body) : body.replace(/\s+/g, ' ').trim();
+  const plainText = body.trimStart().startsWith('<')
+    ? stripHtml(body)
+    : body.replace(/\s+/g, ' ').trim();
 
   return plainText.slice(0, MAX_SNIPPET_CHARS);
 }
