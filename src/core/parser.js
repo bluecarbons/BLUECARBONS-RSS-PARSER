@@ -3,11 +3,17 @@ export function parseXml(xml) {
 
   function unescapeEntities(text) {
     return text
-      .replace(/&amp;/g, '&')
+      // Named XML entities (must come first before stripping &amp;)
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&apos;/g, "'");
+      // Numeric entities — decimal (&#8217;) and hex (&#x2019;)
+      // Handles all Unicode codepoints including curly quotes, em-dashes, ellipsis, etc.
+      .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+      .replace(/&#([0-9]+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+      // &amp; last so prior replacements don't double-decode
+      .replace(/&amp;/g, '&');
   }
 
   const stack = [ { '#name': 'root', '#children': [] } ];
@@ -266,7 +272,11 @@ function getFeedAndItems(parsed) {
   return { feedNode: feedNode || {}, rawItems };
 }
 
-export async function parseFeedXml(xml, options = {}) {
+/**
+ * Parse a raw RSS/Atom XML string into a normalised feed object.
+ * Synchronous — XML parsing is CPU-bound; async wrapper was unnecessary overhead.
+ */
+export function parseFeedXml(xml, options = {}) {
   const parsed = parseXml(xml);
   const { feedNode, rawItems } = getFeedAndItems(parsed);
   const items = rawItems.map((itemNode) => normalizeItem(itemNode, options));
