@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import { fetchFullArticle } from './fetch-article.js';
 
 function validateAnalysis(result) {
@@ -18,14 +17,11 @@ function validateAnalysis(result) {
   return { decision, confidence, summary, impact, actionItems, tags };
 }
 
-export const AnalysisSchema = z.object({
-  decision: z.enum(['relevant', 'ignore']),
-  confidence: z.number().int().min(0).max(100),
-  summary: z.string().min(1),
-  impact: z.string().min(1),
-  actionItems: z.array(z.string()),
-  tags: z.array(z.string())
-});
+export const AnalysisSchema = {
+  parse(result) {
+    return validateAnalysis(result);
+  }
+};
 
 function heuristicAnalyze(item, context) {
   const text = `${item.title}\n${item.contentSnippet ?? ''}\n${context ?? ''}`.toLowerCase();

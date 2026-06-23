@@ -1,4 +1,148 @@
-import { XMLParser } from 'fast-xml-parser';
+export function parseXml(xml) {
+  let index = 0;
+
+  function unescapeEntities(text) {
+    return text
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'");
+  }
+
+  const stack = [ { '#name': 'root', '#children': [] } ];
+
+  while (index < xml.length) {
+    const nextOpen = xml.indexOf('<', index);
+    if (nextOpen === -1) {
+      const text = xml.slice(index).trim();
+      if (text) {
+        const current = stack[stack.length - 1];
+        if (current) current['#text'] = (current['#text'] || '') + unescapeEntities(text);
+      }
+      break;
+    }
+
+    if (nextOpen > index) {
+      const text = xml.slice(index, nextOpen).trim();
+      if (text) {
+        const current = stack[stack.length - 1];
+        if (current) current['#text'] = (current['#text'] || '') + unescapeEntities(text);
+      }
+    }
+
+    index = nextOpen;
+
+    if (xml.startsWith('<!--', index)) {
+      const closeComment = xml.indexOf('-->', index + 4);
+      if (closeComment === -1) {
+        index = xml.length;
+      } else {
+        index = closeComment + 3;
+      }
+      continue;
+    }
+
+    if (xml.startsWith('<![CDATA[', index)) {
+      const closeCdata = xml.indexOf(']]>', index + 9);
+      const text = closeCdata === -1 ? xml.slice(index + 9) : xml.slice(index + 9, closeCdata);
+      const current = stack[stack.length - 1];
+      if (current) {
+        current['#text'] = (current['#text'] || '') + text;
+      }
+      index = closeCdata === -1 ? xml.length : closeCdata + 3;
+      continue;
+    }
+
+    if (xml.startsWith('<?', index)) {
+      const closeProc = xml.indexOf('?>', index + 2);
+      index = closeProc === -1 ? xml.length : closeProc + 2;
+      continue;
+    }
+
+    const closeTagBracket = xml.indexOf('>', index);
+    if (closeTagBracket === -1) {
+      index = xml.length;
+      break;
+    }
+
+    const tagStr = xml.slice(index + 1, closeTagBracket);
+    index = closeTagBracket + 1;
+
+    if (tagStr.startsWith('/')) {
+      const name = tagStr.slice(1).trim();
+      if (stack.length > 1 && stack[stack.length - 1]['#name'] === name) {
+        const closed = stack.pop();
+        stack[stack.length - 1]['#children'].push(closed);
+      }
+    } else {
+      const isSelfClose = tagStr.endsWith('/');
+      const content = isSelfClose ? tagStr.slice(0, -1) : tagStr;
+      
+      const spaceIndex = content.search(/\s/);
+      const name = spaceIndex === -1 ? content : content.slice(0, spaceIndex);
+      const attrStr = spaceIndex === -1 ? '' : content.slice(spaceIndex);
+
+      const node = { '#name': name, '#children': [] };
+
+      const attrRegex = /([a-zA-Z0-9_:-]+)="([^"]*)"|([a-zA-Z0-9_:-]+)='([^']*)'/g;
+      let attrMatch;
+      while ((attrMatch = attrRegex.exec(attrStr)) !== null) {
+        const key = attrMatch[1] || attrMatch[3];
+        const val = attrMatch[2] !== undefined ? attrMatch[2] : attrMatch[4];
+        node[`@_${key}`] = val;
+      }
+
+      if (isSelfClose) {
+        stack[stack.length - 1]['#children'].push(node);
+      } else {
+        stack.push(node);
+      }
+    }
+  }
+
+  function toJsObject(node) {
+    const attrKeys = Object.keys(node).filter(k => k.startsWith('@_'));
+    if (node['#children'].length === 0) {
+      // Leaf with no attributes and only text → return plain string
+      if (attrKeys.length === 0 && '#text' in node) {
+        return node['#text'];
+      }
+      // Leaf with no attributes and no text → return empty string
+      if (attrKeys.length === 0) {
+        return '';
+      }
+      // Leaf with attributes (e.g. self-closing <link href="..."/>) → return object with attrs + text
+      const res = {};
+      if ('#text' in node) res['#text'] = node['#text'];
+      for (const k of attrKeys) res[k] = node[k];
+      return res;
+    }
+
+    const res = {};
+    if ('#text' in node) res['#text'] = node['#text'];
+    for (const k of Object.keys(node)) {
+      if (k.startsWith('@_')) res[k] = node[k];
+    }
+
+    for (const child of node['#children']) {
+      const name = child['#name'];
+      const val = toJsObject(child);
+      if (name in res) {
+        if (Array.isArray(res[name])) {
+          res[name].push(val);
+        } else {
+          res[name] = [res[name], val];
+        }
+      } else {
+        res[name] = val;
+      }
+    }
+    return res;
+  }
+
+  return toJsObject(stack[0]);
+}
 
 function asArray(value) {
   if (value == null) return [];
@@ -78,7 +222,7 @@ function normalizeItem(itemNode, options) {
     categories: asArray(itemNode.category ?? itemNode.categories).map(textValue).filter(Boolean)
   };
 
-  if (!options.normalize) {
+  if (options.normalize === false) {
     Object.assign(normalized, itemNode);
   }
 
@@ -123,20 +267,7 @@ function getFeedAndItems(parsed) {
 }
 
 export async function parseFeedXml(xml, options = {}) {
-  const parser = new XMLParser({
-    ignoreAttributes: false,
-    attributeNamePrefix: '@_',
-    textNodeName: '#text',
-    cdataPropName: '#cdata',
-    trimValues: true,
-    allowBooleanAttributes: true,
-    parseTagValue: false,
-    parseAttributeValue: false,
-    removeNSPrefix: false,
-    ...options.xml2js
-  });
-
-  const parsed = parser.parse(xml);
+  const parsed = parseXml(xml);
   const { feedNode, rawItems } = getFeedAndItems(parsed);
   const items = rawItems.map((itemNode) => normalizeItem(itemNode, options));
   return normalizeFeed(feedNode, items, options);
