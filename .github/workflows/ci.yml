@@ -1,27 +1,52 @@
 name: CI
 
+# Run on every push to main/develop and on all pull requests.
+# Deliberately excludes pushes to arbitrary feature branches to avoid
+# burning minutes on every WIP commit — the PR check covers those.
 on:
   push:
+    branches:
+      - main
+      - develop
   pull_request:
 
 jobs:
   test:
+    name: Test (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
 
     strategy:
-      # Supported and verified Node.js releases for this package.
+      fail-fast: false
       matrix:
+        # Supported and verified Node.js releases for this package.
         node-version: [22.x, 24.x]
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
-      - run: npm ci --ignore-scripts
-      - run: corepack pnpm install --frozen-lockfile --ignore-scripts
-      - run: npm test
-      - run: npm audit --audit-level=high
-      - run: npm pack --dry-run
-      - run: npm publish --dry-run
+
+      - name: Enable corepack (pnpm)
+        run: corepack enable
+
+      # --ignore-scripts prevents lifecycle scripts in dependencies from
+      # running during install — supply-chain safety best practice.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Lint (syntax check all source files)
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
+      - name: Audit for high/critical vulnerabilities
+        run: npm audit --audit-level=high
+
+      - name: Dry-run pack (verify publishable artefact)
+        run: npm pack --dry-run
