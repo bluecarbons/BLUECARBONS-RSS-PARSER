@@ -9,14 +9,13 @@ export function parseXml(xml) {
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
       // Numeric entities — decimal (&#8217;) and hex (&#x2019;)
-      // Handles all Unicode codepoints including curly quotes, em-dashes, ellipsis, etc.
       .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
       .replace(/&#([0-9]+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
       // &amp; last so prior replacements don't double-decode
       .replace(/&amp;/g, '&');
   }
 
-  const stack = [ { '#name': 'root', '#children': [] } ];
+  const stack = [{ '#name': 'root', '#children': [] }];
 
   while (index < xml.length) {
     const nextOpen = xml.indexOf('<', index);
@@ -76,27 +75,48 @@ export function parseXml(xml) {
     index = closeTagBracket + 1;
 
     if (tagStr.startsWith('/')) {
+      // FIX: walk the stack backwards to find the nearest matching open tag.
+      // Real-world RSS/Atom feeds routinely contain mismatched or unclosed tags.
+      // Previously we only popped if the top matched — a mismatch silently
+      // swallowed the close tag, leaving the stack open and nesting all
+      // subsequent siblings inside the unclosed node.
       const name = tagStr.slice(1).trim();
-      if (stack.length > 1 && stack[stack.length - 1]['#name'] === name) {
-        const closed = stack.pop();
-        stack[stack.length - 1]['#children'].push(closed);
+      let found = -1;
+      for (let i = stack.length - 1; i >= 1; i--) {
+        if (stack[i]['#name'] === name) {
+          found = i;
+          break;
+        }
       }
+      if (found !== -1) {
+        // Pop everything down to and including the matched open tag,
+        // attaching each as a child of its parent as we go.
+        while (stack.length > found) {
+          const closed = stack.pop();
+          stack[stack.length - 1]['#children'].push(closed);
+        }
+      }
+      // If not found at all, the close tag has no matching open — skip it.
     } else {
       const isSelfClose = tagStr.endsWith('/');
       const content = isSelfClose ? tagStr.slice(0, -1) : tagStr;
-      
+
       const spaceIndex = content.search(/\s/);
       const name = spaceIndex === -1 ? content : content.slice(0, spaceIndex);
       const attrStr = spaceIndex === -1 ? '' : content.slice(spaceIndex);
 
       const node = { '#name': name, '#children': [] };
 
+      // FIX: attribute regex now captures both single- and double-quoted values
+      // that may contain XML entities (e.g. &quot; inside a double-quoted value).
+      // After capturing, run unescapeEntities so title="She &quot;rules&quot;"
+      // is stored as: She "rules" instead of being truncated at the &quot;.
       const attrRegex = /([a-zA-Z0-9_:-]+)="([^"]*)"|([a-zA-Z0-9_:-]+)='([^']*)'/g;
       let attrMatch;
       while ((attrMatch = attrRegex.exec(attrStr)) !== null) {
         const key = attrMatch[1] || attrMatch[3];
-        const val = attrMatch[2] !== undefined ? attrMatch[2] : attrMatch[4];
-        node[`@_${key}`] = val;
+        const rawVal = attrMatch[2] !== undefined ? attrMatch[2] : attrMatch[4];
+        node[`@_${key}`] = unescapeEntities(rawVal);
       }
 
       if (isSelfClose) {
@@ -110,15 +130,12 @@ export function parseXml(xml) {
   function toJsObject(node) {
     const attrKeys = Object.keys(node).filter(k => k.startsWith('@_'));
     if (node['#children'].length === 0) {
-      // Leaf with no attributes and only text → return plain string
       if (attrKeys.length === 0 && '#text' in node) {
         return node['#text'];
       }
-      // Leaf with no attributes and no text → return empty string
       if (attrKeys.length === 0) {
         return '';
       }
-      // Leaf with attributes (e.g. self-closing <link href="..."/>) → return object with attrs + text
       const res = {};
       if ('#text' in node) res['#text'] = node['#text'];
       for (const k of attrKeys) res[k] = node[k];

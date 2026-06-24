@@ -1,4 +1,12 @@
-const DEFAULT_USER_AGENT = 'agentic-rss-parser/1.0.1';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+
+// FIX: read version from package.json via createRequire so the User-Agent
+// string never drifts from the published package version.
+// Previously hardcoded to '1.0.1' — would have stayed wrong forever.
+const { version: PKG_VERSION } = require('../../package.json');
+const DEFAULT_USER_AGENT = `agentic-rss-parser/${PKG_VERSION}`;
 
 export async function fetchTextWithRedirects(url, options = {}) {
   assertHttpUrl(url);

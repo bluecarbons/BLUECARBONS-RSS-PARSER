@@ -1,5 +1,10 @@
 import { AnalysisSchema, heuristicAnalyze } from '../agent.js';
 
+// Timeout for LLM provider API calls (30 s).
+// Consistent with the 10 s timeout used by the HTTP layer in core/http.js,
+// but longer because LLM inference is CPU-bound and routinely takes 5–20 s.
+const LLM_TIMEOUT_MS = 30_000;
+
 /**
  * createAnalyzer — builds an analyzer function for the given provider config.
  *
@@ -24,13 +29,10 @@ import { AnalysisSchema, heuristicAnalyze } from '../agent.js';
 export async function createAnalyzer(config = {}) {
   const provider = config.provider ?? 'heuristic';
   const modelId = config.model;
-  // API key: prefer explicit config over environment variable (12-factor pattern).
   const apiKey = config.apiKey;
   const baseURL = config.baseURL;
 
   if (!provider || provider === 'heuristic') {
-    // Delegate to the single canonical heuristicAnalyze in agent.js.
-    // This block previously contained a verbatim copy — deduplicated here.
     return async ({ item, context }) => heuristicAnalyze(item, context);
   }
 
@@ -48,14 +50,22 @@ Only output valid JSON.`;
 
     const userPrompt = `Title: ${item.title}\nURL: ${item.link}\nFeed snippet: ${item.contentSnippet ?? ''}\nExpanded context: ${context ?? ''}`;
 
+    // FIX: all LLM fetch calls now have a 30 s AbortController timeout.
+    // Previously a hung API call would stall the worker indefinitely,
+    // blocking that concurrency slot (and with concurrency:1, the whole pipeline).
+    function makeLlmFetch(url, init) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(new Error('LLM request timed out')), LLM_TIMEOUT_MS);
+      return fetch(url, { ...init, signal: controller.signal })
+        .finally(() => clearTimeout(timeoutId));
+    }
+
     if (provider === 'openai' || provider === 'local') {
       const url = baseURL || (provider === 'local' ? 'http://localhost:11434/v1' : 'https://api.openai.com/v1');
       const endpoint = `${url.replace(/\/$/, '')}/chat/completions`;
-      // Read user's OpenAI key from environment — never stored or forwarded beyond this request.
       const authHeader = apiKey || (provider === 'local' ? 'local' : process.env.OPENAI_API_KEY || '');
 
-      // Network request is intentional: sends feed item to user-configured LLM provider for analysis.
-      const response = await fetch(endpoint, {
+      const response = await makeLlmFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -83,13 +93,11 @@ Only output valid JSON.`;
     if (provider === 'anthropic') {
       const url = baseURL || 'https://api.anthropic.com/v1';
       const endpoint = `${url.replace(/\/$/, '')}/messages`;
-      // Read user's Anthropic key from environment — never stored or forwarded beyond this request.
       const authHeader = apiKey || process.env.ANTHROPIC_API_KEY || '';
 
       const anthropicSystemPrompt = systemPrompt + '\nYou MUST output ONLY raw JSON inside <json>...</json> tags. Do not wrap in markdown or write conversational text.';
 
-      // Network request is intentional: sends feed item to Anthropic API for analysis.
-      const response = await fetch(endpoint, {
+      const response = await makeLlmFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

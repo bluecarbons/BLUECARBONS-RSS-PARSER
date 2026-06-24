@@ -1,10 +1,19 @@
 #!/usr/bin/env node
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 import readline from 'node:readline';
 import { runAgenticParser } from '../parser.js';
 import { createAnalyzer } from '../adapters/provider.js';
 import { fetchFullArticle } from '../fetch-article.js';
+
+const require = createRequire(import.meta.url);
+
+/**
+ * Read version from package.json via createRequire so serverInfo.version
+ * never drifts from the published package version.
+ */
+const { version: PKG_VERSION } = require('../../package.json');
 
 /**
  * Resolve the default DB path relative to this file so the server works
@@ -72,7 +81,8 @@ rl.on('line', async (line) => {
       sendResponse(request.id, {
         protocolVersion: '2024-11-05',
         capabilities: { tools: {} },
-        serverInfo: { name: 'agentic-rss-parser', version: '1.1.0' }
+        // FIX: version is read from package.json — never hardcoded.
+        serverInfo: { name: 'agentic-rss-parser', version: PKG_VERSION }
       });
       return;
     }
@@ -88,6 +98,19 @@ rl.on('line', async (line) => {
 
     if (request.method === 'tools/call') {
       const { name, arguments: args } = request.params || {};
+
+      // FIX: validate args shape before dispatching to handlers.
+      // A null/missing arguments field must return -32602 Invalid params,
+      // not leak a TypeError from inside the handler.
+      if (!name || typeof name !== 'string') {
+        sendError(request.id, -32602, 'Invalid params: missing tool name');
+        return;
+      }
+      if (args === null || args === undefined || typeof args !== 'object' || Array.isArray(args)) {
+        sendError(request.id, -32602, 'Invalid params: arguments must be a JSON object');
+        return;
+      }
+
       try {
         const result = await handleToolCall(name, args);
         sendResponse(request.id, result);
@@ -115,12 +138,15 @@ function sendError(id, code, message) {
 
 async function handleToolCall(name, args) {
   if (name === 'fetch_rss_feed') {
-    const url = args.url;
-    const limit = Number.isInteger(args.limit) ? args.limit : 10;
+    if (typeof args.url !== 'string' || !args.url.trim()) {
+      throw Object.assign(new Error('Invalid params: url is required and must be a non-empty string'), { code: -32602 });
+    }
+    const url = args.url.trim();
+    const limit = Number.isInteger(args.limit) && args.limit > 0 ? args.limit : 10;
     const provider = args.provider || 'heuristic';
 
     const analyzer = await createAnalyzer({ provider });
-    const results = await runAgenticParser({
+    const { results } = await runAgenticParser({
       feedUrls: [url],
       dbPath: DEFAULT_DB_PATH,
       analyzer,
@@ -138,7 +164,10 @@ async function handleToolCall(name, args) {
   }
 
   if (name === 'fetch_full_article') {
-    const url = args.url;
+    if (typeof args.url !== 'string' || !args.url.trim()) {
+      throw Object.assign(new Error('Invalid params: url is required and must be a non-empty string'), { code: -32602 });
+    }
+    const url = args.url.trim();
     const text = await fetchFullArticle(url);
     return {
       content: [

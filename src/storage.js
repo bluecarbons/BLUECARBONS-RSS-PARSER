@@ -40,8 +40,12 @@ export function createStorage(dbPath) {
       ).run(item.id, item.feedUrl, item.title, item.link, item.publishedAt ?? null);
     },
     saveAnalysis(itemId, analysis) {
+      // FIX: INSERT OR IGNORE instead of INSERT OR REPLACE.
+      // OR REPLACE deletes the old row then inserts a new one, permanently
+      // destroying the original created_at timestamp. OR IGNORE skips
+      // silently on conflict, preserving the first-seen analysis record.
       db.prepare(
-        `INSERT OR REPLACE INTO analyses
+        `INSERT OR IGNORE INTO analyses
          (id, item_id, decision, confidence, summary, impact, action_items, tags)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
