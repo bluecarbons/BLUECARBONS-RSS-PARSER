@@ -7,9 +7,8 @@ import { fetchTextWithRedirects } from './core/http.js';
 
 function normalizeItem(feedUrl, item) {
   const link = item.link || '';
-  // FIX: fallback chain now uses guid/id (Atom's canonical identifier) before
-  // title, preventing SHA collisions for Atom entries with no link/title.
-  // Previously: feedUrl + (link || title) — both empty → same hash for all.
+  // Fallback chain: link → guid/id (Atom canonical) → title → pubDate → random.
+  // Prevents SHA collisions for Atom entries that have no link or title.
   const idSource = link || item.guid || item.title || item.pubDate || crypto.randomUUID();
   const id = crypto
     .createHash('sha256')
@@ -42,8 +41,6 @@ function normalizeItem(feedUrl, item) {
  *   feedErrors — per-feed errors: { feedUrl, error } for feeds that failed.
  */
 export async function runAgenticParser(config) {
-  // FIX: validate required fields before any I/O so we never create the
-  // SQLite DB on disk for an obviously bad config.
   if (!Array.isArray(config?.feedUrls) || config.feedUrls.length === 0) {
     throw new TypeError('runAgenticParser: config.feedUrls must be a non-empty array of URL strings');
   }
@@ -62,8 +59,6 @@ export async function runAgenticParser(config) {
       config.feedUrls,
       concurrency,
       async (feedUrl) => {
-        // FIX: per-feed error isolation — an error on one feed is caught and
-        // recorded in feedErrors; remaining feeds continue processing.
         try {
           const xml = await fetchTextWithRedirects(feedUrl, config.parserOptions);
           const feed = parseFeedXml(xml, config.parserOptions);
@@ -102,19 +97,27 @@ function normalizeConcurrency(concurrency) {
   return Math.min(16, Math.trunc(parsed));
 }
 
+/**
+ * Run `worker` over every element in `items` with at most `limit`
+ * concurrent workers. Returns void — results are accumulated via
+ * the worker's own side-effects (closure over outer `results` array).
+ *
+ * CORRECTNESS: the inner `index` counter is safe in single-threaded JS
+ * because each worker yields at `await worker(...)`, and index is captured
+ * before the yield. No two workers ever receive the same index.
+ */
 async function mapWithConcurrency(items, limit, worker) {
-  const results = new Array(items.length);
   let index = 0;
 
   async function next() {
     while (index < items.length) {
       const currentIndex = index;
       index += 1;
-      results[currentIndex] = await worker(items[currentIndex], currentIndex);
+      await worker(items[currentIndex], currentIndex);
     }
   }
 
-  const workers = Array.from({ length: Math.min(limit, items.length) }, () => next());
-  await Promise.all(workers);
-  return results;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, () => next())
+  );
 }

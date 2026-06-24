@@ -67,6 +67,18 @@ export interface AnalysisResult {
   tags: string[];
 }
 
+/** A feed-level error recorded when one URL in a batch fails. */
+export interface FeedError {
+  feedUrl: string;
+  error: string;
+}
+
+/** Return shape of runAgenticParser. */
+export interface AgenticParserResult {
+  results: Array<{ item: ParserFeedItem; analysis: AnalysisResult }>;
+  feedErrors: FeedError[];
+}
+
 // ─── Config shapes ───────────────────────────────────────────────────────────
 
 export interface AnalyzerConfig {
@@ -110,6 +122,10 @@ export class Parser<Feed = unknown, Item = ParserFeedItem> {
   parseFile(path: string): Promise<ParserFeed<Feed, Item>>;
   parseFile(path: string, callback: ParserCallback<ParserFeed<Feed, Item>>): void;
 
+  /**
+   * Run the full agentic pipeline over one or more feed URLs.
+   * Returns the items array directly (feedErrors are surfaced via feedErrors property).
+   */
   parseFeed(
     urls: string | string[],
     config?: ParseFeedConfig
@@ -122,9 +138,13 @@ export function createParser<Feed = unknown, Item = ParserFeedItem>(
 
 // ─── Core functions ──────────────────────────────────────────────────────────
 
+/**
+ * Run the agentic parser pipeline.
+ * Returns both successful results and per-feed errors.
+ */
 export function runAgenticParser(
   config: AgenticParserConfig
-): Promise<Array<{ item: ParserFeedItem; analysis: AnalysisResult }>>;
+): Promise<AgenticParserResult>;
 
 export function analyzeFeedItem(
   item: ParserFeedItem,

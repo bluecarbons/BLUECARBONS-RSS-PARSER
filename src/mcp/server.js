@@ -9,19 +9,11 @@ import { fetchFullArticle } from '../fetch-article.js';
 
 const require = createRequire(import.meta.url);
 
-/**
- * Read version from package.json via createRequire so serverInfo.version
- * never drifts from the published package version.
- */
+// Version read from package.json — never hardcoded.
 const { version: PKG_VERSION } = require('../../package.json');
 
-/**
- * Resolve the default DB path relative to this file so the server works
- * correctly regardless of the CWD at launch time. When invoked by a MCP
- * host (Claude Desktop, Cursor, VS Code) the CWD is unpredictable and a
- * relative './data/...' path would create or fail to find the DB in an
- * arbitrary location.
- */
+// DB path resolved relative to this file so the server works correctly
+// regardless of CWD when launched by Claude Desktop, Cursor, or any MCP host.
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DB_PATH = join(__dirname, '../../data/rss-agent.db');
 
@@ -70,18 +62,19 @@ const tools = [
 ];
 
 rl.on('line', async (line) => {
+  let requestId;
   try {
     const request = JSON.parse(line);
+    requestId = request.id;
 
     if (request.jsonrpc !== '2.0') {
       return;
     }
 
     if (request.method === 'initialize') {
-      sendResponse(request.id, {
+      sendResponse(requestId, {
         protocolVersion: '2024-11-05',
         capabilities: { tools: {} },
-        // FIX: version is read from package.json — never hardcoded.
         serverInfo: { name: 'agentic-rss-parser', version: PKG_VERSION }
       });
       return;
@@ -92,54 +85,60 @@ rl.on('line', async (line) => {
     }
 
     if (request.method === 'tools/list') {
-      sendResponse(request.id, { tools });
+      sendResponse(requestId, { tools });
       return;
     }
 
     if (request.method === 'tools/call') {
       const { name, arguments: args } = request.params || {};
 
-      // FIX: validate args shape before dispatching to handlers.
-      // A null/missing arguments field must return -32602 Invalid params,
-      // not leak a TypeError from inside the handler.
       if (!name || typeof name !== 'string') {
-        sendError(request.id, -32602, 'Invalid params: missing tool name');
+        sendError(requestId, -32602, 'Invalid params: missing tool name');
         return;
       }
       if (args === null || args === undefined || typeof args !== 'object' || Array.isArray(args)) {
-        sendError(request.id, -32602, 'Invalid params: arguments must be a JSON object');
+        sendError(requestId, -32602, 'Invalid params: arguments must be a JSON object');
         return;
       }
 
       try {
         const result = await handleToolCall(name, args);
-        sendResponse(request.id, result);
+        sendResponse(requestId, result);
       } catch (err) {
-        sendError(request.id, -32603, err.message);
+        // Preserve -32602 validation errors from handleToolCall;
+        // all other throws are internal errors (-32603).
+        const code = err.code === -32602 ? -32602 : -32603;
+        sendError(requestId, code, err.message);
       }
       return;
     }
 
-    if (request.id !== undefined) {
-      sendError(request.id, -32601, 'Method not found');
+    if (requestId !== undefined) {
+      sendError(requestId, -32601, 'Method not found');
     }
   } catch {
+    // JSON-RPC spec §5: parse errors use id: null (not undefined).
     sendError(null, -32700, 'Parse error');
   }
 });
 
 function sendResponse(id, result) {
-  console.log(JSON.stringify({ jsonrpc: '2.0', id, result }));
+  process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result }) + '\n');
 }
 
 function sendError(id, code, message) {
-  console.log(JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } }));
+  process.stdout.write(
+    JSON.stringify({ jsonrpc: '2.0', id: id ?? null, error: { code, message } }) + '\n'
+  );
 }
 
 async function handleToolCall(name, args) {
   if (name === 'fetch_rss_feed') {
     if (typeof args.url !== 'string' || !args.url.trim()) {
-      throw Object.assign(new Error('Invalid params: url is required and must be a non-empty string'), { code: -32602 });
+      throw Object.assign(
+        new Error('Invalid params: url is required and must be a non-empty string'),
+        { code: -32602 }
+      );
     }
     const url = args.url.trim();
     const limit = Number.isInteger(args.limit) && args.limit > 0 ? args.limit : 10;
@@ -165,7 +164,10 @@ async function handleToolCall(name, args) {
 
   if (name === 'fetch_full_article') {
     if (typeof args.url !== 'string' || !args.url.trim()) {
-      throw Object.assign(new Error('Invalid params: url is required and must be a non-empty string'), { code: -32602 });
+      throw Object.assign(
+        new Error('Invalid params: url is required and must be a non-empty string'),
+        { code: -32602 }
+      );
     }
     const url = args.url.trim();
     const text = await fetchFullArticle(url);

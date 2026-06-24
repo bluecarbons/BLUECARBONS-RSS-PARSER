@@ -1,9 +1,15 @@
 import { AnalysisSchema, heuristicAnalyze } from '../agent.js';
 
 // Timeout for LLM provider API calls (30 s).
-// Consistent with the 10 s timeout used by the HTTP layer in core/http.js,
-// but longer because LLM inference is CPU-bound and routinely takes 5–20 s.
+// Longer than the 10 s HTTP layer timeout because LLM inference is
+// CPU-bound and routinely takes 5–20 s on cloud providers.
 const LLM_TIMEOUT_MS = 30_000;
+
+// Maximum response body size accepted from an LLM provider (1 MB).
+// Prevents OOM if a misbehaving proxy or misconfigured endpoint returns
+// a multi-megabyte error payload that would otherwise be fully buffered
+// by response.json().
+const MAX_RESPONSE_BYTES = 1_048_576; // 1 MB
 
 /**
  * createAnalyzer — builds an analyzer function for the given provider config.
@@ -50,14 +56,44 @@ Only output valid JSON.`;
 
     const userPrompt = `Title: ${item.title}\nURL: ${item.link}\nFeed snippet: ${item.contentSnippet ?? ''}\nExpanded context: ${context ?? ''}`;
 
-    // FIX: all LLM fetch calls now have a 30 s AbortController timeout.
-    // Previously a hung API call would stall the worker indefinitely,
-    // blocking that concurrency slot (and with concurrency:1, the whole pipeline).
-    function makeLlmFetch(url, init) {
+    /**
+     * Fetch helper with:
+     *   - 30 s AbortController timeout
+     *   - Response body size cap (MAX_RESPONSE_BYTES) before json() parse
+     *     to prevent OOM on multi-MB error payloads from misbehaving proxies.
+     */
+    async function makeLlmFetch(url, init) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(new Error('LLM request timed out')), LLM_TIMEOUT_MS);
-      return fetch(url, { ...init, signal: controller.signal })
-        .finally(() => clearTimeout(timeoutId));
+      const timeoutId = setTimeout(
+        () => controller.abort(new Error('LLM request timed out')),
+        LLM_TIMEOUT_MS
+      );
+
+      let response;
+      try {
+        response = await fetch(url, { ...init, signal: controller.signal });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      // Guard against huge error payloads before buffering into JSON.
+      const contentLength = Number(response.headers.get('content-length'));
+      if (Number.isFinite(contentLength) && contentLength > MAX_RESPONSE_BYTES) {
+        throw new Error(
+          `LLM provider response too large: ${contentLength} bytes (max ${MAX_RESPONSE_BYTES})`
+        );
+      }
+
+      // Read as text first so we can enforce a size cap regardless of
+      // whether Content-Length was present.
+      const text = await response.text();
+      if (text.length > MAX_RESPONSE_BYTES) {
+        throw new Error(
+          `LLM provider response body too large: ${text.length} chars (max ${MAX_RESPONSE_BYTES})`
+        );
+      }
+
+      return { response, text };
     }
 
     if (provider === 'openai' || provider === 'local') {
@@ -65,7 +101,7 @@ Only output valid JSON.`;
       const endpoint = `${url.replace(/\/$/, '')}/chat/completions`;
       const authHeader = apiKey || (provider === 'local' ? 'local' : process.env.OPENAI_API_KEY || '');
 
-      const response = await makeLlmFetch(endpoint, {
+      const { response, text } = await makeLlmFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -85,7 +121,7 @@ Only output valid JSON.`;
         throw new Error(`LLM provider request failed: ${response.status} ${response.statusText}`);
       }
 
-      const resData = await response.json();
+      const resData = JSON.parse(text);
       const parsedResult = JSON.parse(resData.choices[0].message.content);
       return AnalysisSchema.parse(parsedResult);
     }
@@ -95,9 +131,11 @@ Only output valid JSON.`;
       const endpoint = `${url.replace(/\/$/, '')}/messages`;
       const authHeader = apiKey || process.env.ANTHROPIC_API_KEY || '';
 
-      const anthropicSystemPrompt = systemPrompt + '\nYou MUST output ONLY raw JSON inside <json>...</json> tags. Do not wrap in markdown or write conversational text.';
+      const anthropicSystemPrompt =
+        systemPrompt +
+        '\nYou MUST output ONLY raw JSON inside <json>...</json> tags. Do not wrap in markdown or write conversational text.';
 
-      const response = await makeLlmFetch(endpoint, {
+      const { response, text } = await makeLlmFetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -108,9 +146,7 @@ Only output valid JSON.`;
           model: modelId || 'claude-3-5-sonnet-latest',
           max_tokens: 1024,
           system: anthropicSystemPrompt,
-          messages: [
-            { role: 'user', content: userPrompt }
-          ]
+          messages: [{ role: 'user', content: userPrompt }]
         })
       });
 
@@ -118,10 +154,10 @@ Only output valid JSON.`;
         throw new Error(`Anthropic request failed: ${response.status} ${response.statusText}`);
       }
 
-      const resData = await response.json();
-      const text = resData.content[0].text;
-      const jsonMatch = /<json>([\s\S]*?)<\/json>/.exec(text);
-      const jsonStr = jsonMatch ? jsonMatch[1] : text;
+      const resData = JSON.parse(text);
+      const rawText = resData.content[0].text;
+      const jsonMatch = /<json>([\s\S]*?)<\/json>/.exec(rawText);
+      const jsonStr = jsonMatch ? jsonMatch[1] : rawText;
       const parsedResult = JSON.parse(jsonStr.trim());
       return AnalysisSchema.parse(parsedResult);
     }

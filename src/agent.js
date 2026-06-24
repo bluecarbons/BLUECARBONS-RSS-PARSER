@@ -90,7 +90,12 @@ export function heuristicAnalyze(item, context) {
 }
 
 export async function analyzeFeedItem(item, options = {}) {
-  const shouldFetch = Boolean(options.fetchFullArticle) && !item.contentSnippet;
+  // CORRECTNESS: check .trim() so an empty-string contentSnippet (which is
+  // falsy but technically present) still triggers article fetching when
+  // fetchFullArticle is enabled. Without .trim(), '' would suppress the fetch
+  // and the item would be analysed with no context at all.
+  const hasContent = Boolean(item.contentSnippet?.trim());
+  const shouldFetch = Boolean(options.fetchFullArticle) && !hasContent;
   const context = shouldFetch
     ? await fetchFullArticle(item.link)
     : (item.contentSnippet ?? item.content ?? '');

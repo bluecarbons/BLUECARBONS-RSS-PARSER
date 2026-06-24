@@ -64,8 +64,20 @@ export class ParserCompat {
     return maybeCallback(promise, callback);
   }
 
+  /**
+   * Run the full agentic pipeline over one or more feed URLs.
+   *
+   * COHERENCE FIX: runAgenticParser now returns { results, feedErrors }.
+   * This method destructures and returns only `results` so callers of the
+   * compat API get the flat items array they expect — consistent with the
+   * rss-parser migration contract and the TypeScript declaration.
+   *
+   * @param {string|string[]} urls
+   * @param {object} [config]
+   * @returns {Promise<Array<{item, analysis}>>}
+   */
   async parseFeed(urls, config = {}) {
-    return runAgenticParser({
+    const { results } = await runAgenticParser({
       feedUrls: Array.isArray(urls) ? urls : [urls],
       dbPath: config.dbPath ?? DEFAULT_DB_PATH,
       fetchFullArticle: Boolean(config.fetchFullArticle),
@@ -74,6 +86,7 @@ export class ParserCompat {
       analyzer: config.analyzer,
       model: config.model
     });
+    return results;
   }
 }
 

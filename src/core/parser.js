@@ -3,15 +3,12 @@ export function parseXml(xml) {
 
   function unescapeEntities(text) {
     return text
-      // Named XML entities (must come first before stripping &amp;)
       .replace(/&quot;/g, '"')
       .replace(/&apos;/g, "'")
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
-      // Numeric entities — decimal (&#8217;) and hex (&#x2019;)
       .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
       .replace(/&#([0-9]+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
-      // &amp; last so prior replacements don't double-decode
       .replace(/&amp;/g, '&');
   }
 
@@ -38,16 +35,17 @@ export function parseXml(xml) {
 
     index = nextOpen;
 
+    // XML comments: <!-- ... -->
     if (xml.startsWith('<!--', index)) {
       const closeComment = xml.indexOf('-->', index + 4);
-      if (closeComment === -1) {
-        index = xml.length;
-      } else {
-        index = closeComment + 3;
-      }
+      index = closeComment === -1 ? xml.length : closeComment + 3;
       continue;
     }
 
+    // CDATA sections: <![CDATA[ ... ]]>
+    // The closing ]]> is searched from index+9 onward. We do a simple
+    // forward indexOf — ]]> cannot appear inside valid CDATA content, and
+    // real-world feeds that embed ]]> inside CDATA are already malformed.
     if (xml.startsWith('<![CDATA[', index)) {
       const closeCdata = xml.indexOf(']]>', index + 9);
       const text = closeCdata === -1 ? xml.slice(index + 9) : xml.slice(index + 9, closeCdata);
@@ -59,6 +57,7 @@ export function parseXml(xml) {
       continue;
     }
 
+    // Processing instructions: <?...?>
     if (xml.startsWith('<?', index)) {
       const closeProc = xml.indexOf('?>', index + 2);
       index = closeProc === -1 ? xml.length : closeProc + 2;
@@ -75,11 +74,10 @@ export function parseXml(xml) {
     index = closeTagBracket + 1;
 
     if (tagStr.startsWith('/')) {
-      // FIX: walk the stack backwards to find the nearest matching open tag.
-      // Real-world RSS/Atom feeds routinely contain mismatched or unclosed tags.
-      // Previously we only popped if the top matched — a mismatch silently
-      // swallowed the close tag, leaving the stack open and nesting all
-      // subsequent siblings inside the unclosed node.
+      // Walk the stack backwards to find the nearest matching open tag.
+      // Real-world RSS/Atom feeds routinely contain mismatched or unclosed
+      // tags (e.g. <br> without </br>, orphaned </p>). Silently skipping
+      // unmatched close tags prevents runaway nesting.
       const name = tagStr.slice(1).trim();
       let found = -1;
       for (let i = stack.length - 1; i >= 1; i--) {
@@ -89,14 +87,11 @@ export function parseXml(xml) {
         }
       }
       if (found !== -1) {
-        // Pop everything down to and including the matched open tag,
-        // attaching each as a child of its parent as we go.
         while (stack.length > found) {
           const closed = stack.pop();
           stack[stack.length - 1]['#children'].push(closed);
         }
       }
-      // If not found at all, the close tag has no matching open — skip it.
     } else {
       const isSelfClose = tagStr.endsWith('/');
       const content = isSelfClose ? tagStr.slice(0, -1) : tagStr;
@@ -107,10 +102,9 @@ export function parseXml(xml) {
 
       const node = { '#name': name, '#children': [] };
 
-      // FIX: attribute regex now captures both single- and double-quoted values
-      // that may contain XML entities (e.g. &quot; inside a double-quoted value).
-      // After capturing, run unescapeEntities so title="She &quot;rules&quot;"
-      // is stored as: She "rules" instead of being truncated at the &quot;.
+      // Capture both double- and single-quoted attribute values, then
+      // unescape entities so title="She &quot;rules&quot;" is stored as:
+      // She "rules" — not truncated at the &quot;.
       const attrRegex = /([a-zA-Z0-9_:-]+)="([^"]*)"|([a-zA-Z0-9_:-]+)='([^']*)'/g;
       let attrMatch;
       while ((attrMatch = attrRegex.exec(attrStr)) !== null) {
@@ -172,10 +166,18 @@ function asArray(value) {
   return Array.isArray(value) ? value : [value];
 }
 
+/**
+ * Strip HTML tags from a string to produce a plain-text snippet.
+ * Also removes <script>, <style>, <iframe>, and <object> blocks
+ * entirely (including their contents) to prevent XSS vectors in any
+ * downstream context that renders contentSnippet as HTML.
+ */
 function stripHtml(html = '') {
   return String(html)
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, ' ')
+    .replace(/<object[\s\S]*?<\/object>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/gi, ' ')
     .replace(/\s+/g, ' ')
