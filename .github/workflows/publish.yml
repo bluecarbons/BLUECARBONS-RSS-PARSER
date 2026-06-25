@@ -54,9 +54,8 @@ jobs:
 
   # ──────────────────────────────────────────────────────────────────
   # Publish: only runs if every test matrix cell passes.
-  # Uses npm provenance (OIDC) — no long-lived NPM_TOKEN stored in secrets.
-  # Fallback: set NPM_TOKEN secret in repo settings if your npm org has not
-  # yet enabled Trusted Publishing (granular access tokens still work).
+  # Uses npm provenance (OIDC) so we do not need to store a long-lived token
+  # in repository secrets.
   # ──────────────────────────────────────────────────────────────────
   publish:
     name: Publish to npm
@@ -97,9 +96,5 @@ jobs:
       # Publish with provenance attestation.
       # --provenance attaches a signed SLSA build provenance statement to the
       # package on npmjs.com, visible under the 'Provenance' tab.
-      # NODE_AUTH_TOKEN is set automatically by actions/setup-node when
-      # registry-url is configured. Set NPM_TOKEN secret as a fallback.
       - name: Publish to npm
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
