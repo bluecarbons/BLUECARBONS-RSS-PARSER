@@ -2,49 +2,88 @@
 
 ## Supported Versions
 
-We support the latest `main` branch and the most recent released version.
+Only the latest release on `main` is actively supported with security fixes.
 
-## Reporting a Vulnerability
-
-If you discover a security issue, please do not open a public issue.
-
-Instead:
-- Contact the maintainers privately through the repository's security contact process.
-- Include a clear description of the issue, reproduction steps, and any relevant feed sample or payload.
+| Version | Supported |
+|---|---|
+| `1.2.x` (current) | ✅ Yes |
+| `1.1.x` | ⚠️ Critical fixes only |
+| `< 1.1.0` | ❌ No |
 
 ---
 
 ## Security Architecture
 
-Agentic RSS Parser is built with a **zero-dependency** runtime architecture. This drastically reduces the package's attack surface and makes it naturally resilient against common supply-chain attacks.
+**Agentic RSS Parser** was designed from v1.0.8 onwards with an explicit security-first stance.
 
-### 1. Supply Chain & Dependency Security
-- **Zero Runtime Dependencies**: The package specifies `{}` under `dependencies` in `package.json`. There are no production transitive dependencies, eliminating risks of compromised downstream packages, unmaintained library bloat, and package-squatting.
-- **Strict devDependencies Checks**: Development-only tools (such as test runners and linters) are regularly checked for vulnerabilities using `npm audit`.
+### XML Parsing — XXE and Billion Laughs
 
-### 2. Custom XML Parser Hardening
-The XML engine (`src/core/parser.js`) is written from scratch using a character-by-character scanner:
-- **No Entity Expansion**: The parser does not expand XML entities or process DTDs (Document Type Definitions). This guarantees complete immunity against **XML External Entity (XXE)** injections and **Billion Laughs (XML bomb)** denial-of-service attacks.
-- **Iteration over Recursion**: Parsing nested elements is handled iteratively rather than recursively. This protects the runtime from call-stack exhaustion (Stack Overflow DoS) even when parsing extremely deep XML documents.
-- **Graceful Error Handling**: Malformed or incomplete XML strings degrade gracefully without throwing fatal errors or causing process crashes.
+The custom XML engine (`src/core/parser.js`) is a non-recursive, character-by-character state machine:
 
-### 3. Cross-Site Scripting (XSS) Mitigation
-- Feed entries can contain rich HTML or `<script>` tags in their content fields. The parser's normalization routines strip dangerous tags (like `<script>` elements and script payloads) when compiling summaries/snippets.
-- Feed consumers should still treat all parsed content as untrusted input and apply appropriate sanitization/escaping before rendering in web browsers.
+- **No DOCTYPE / ENTITY expansion** — both are silently ignored, making XXE (XML External Entity) attacks structurally impossible.
+- **No recursive descent** — deeply nested XML trees do not cause stack overflows.
+- **Billion Laughs immune** — without entity expansion, recursive entity references cannot amplify into memory exhaustion.
 
-### 4. HTTP & URL Sanitization
-- The HTTP retrieval layer validates URLs before initiating fetches.
-- **Protocol Allowlist**: Only `http:` and `https:` URLs are processed. System/file-level protocols (such as `file://`, `ftp://`, or `javascript://`) are immediately rejected to prevent **Server-Side Request Forgery (SSRF)** and **Local File Inclusion (LFI)**.
-- **Timeout Controls**: Request timeouts are strictly enforced by default to prevent hanging network calls from tying up process resources.
+### HTTP Layer
 
-### 5. Model Context Protocol (MCP) Server Security
-- The built-in MCP server operates entirely over standard input/output (`stdio`) using a custom JSON-RPC parser.
-- **JSON-RPC Conformance**: The server enforces schema validation and strictly structured JSON envelopes. Invalid payloads or unknown procedures return standard JSON-RPC 2.0 error codes without exposing stack traces.
+`src/core/http.js` enforces several protections on all outbound requests:
+
+- **Protocol allowlist** — only `http:` and `https:` are accepted. `file://`, `javascript://`, `ftp://`, and all other schemes are rejected before any network call (prevents SSRF and local file inclusion).
+- **Redirect cap** — maximum 5 redirects followed; subsequent redirects throw an error (prevents redirect-loop amplification).
+- **Timeout** — all requests time out after 10 seconds by default (configurable via `options.timeout`).
+- **Response size cap** — feed responses are hard-capped at 5 MB. The cap is checked against `Content-Length` (fast path) and re-checked after buffering chunked responses, preventing OOM via large or malicious payloads.
+- **User-Agent override** — the `userAgent` option (v1.2.0+) allows callers to override the default UA. This is intentional and documented; it is not a security bypass.
+
+### LLM Prompt Injection
+
+`src/adapters/provider.js` sanitises all feed content before interpolating it into LLM prompts:
+
+- ASCII control characters (`\x00`–`\x1F` excluding space) are stripped.
+- Newlines are collapsed to spaces, preventing role-boundary injection sequences such as `\nAssistant: ignore all previous instructions`.
+- Titles are capped at 500 characters; snippets at 2,000 characters; expanded context at 3,000 characters.
+
+### XSS Mitigation
+
+`src/core/parser.js` strips the following tags from `contentSnippet` during HTML-to-text extraction:
+`<script>`, `<style>`, `<iframe>`, `<object>`, `<embed>`, `<form>`, `<input>`, `<button>`.
+
+This mitigates XSS if `contentSnippet` is rendered as HTML by a downstream consumer.
+
+### LLM Provider Security
+
+- **API key validation** — explicit check before any network call. An empty or missing key throws a clear error rather than sending a blank `Bearer ` token.
+- **Provider allowlist** — `SUPPORTED_PROVIDERS` in `provider.js` and `ALLOWED_PROVIDERS` in `mcp/server.js` reject unknown provider strings before they reach env-var access or network dispatch.
+- **Response size cap** — LLM API responses are capped at 1 MB before parsing.
+- **API keys never logged** — keys are read from env or config and forwarded only to the official provider endpoint. They are never written to disk, logs, or any secondary destination.
+
+### MCP Server
+
+- **Input validation** — all `tools/call` arguments are validated before use. A non-string or empty `url` returns JSON-RPC `-32602 Invalid params`.
+- **Provider allowlist enforced per call** — an untrusted MCP caller cannot supply an arbitrary `provider` string to reach internal dispatch.
+- **No persistent state across calls** — each tool call is stateless; no session data is retained between requests.
+
+### Supply-Chain
+
+- **Zero production dependencies** — the entire production surface is auditable in this single repository. There are no transitive packages that could introduce a supply-chain compromise.
+- **`socket.dev` false positives suppressed** — intentional `process.env` access (LLM API keys) and outbound network calls (LLM providers) are declared in `package.json` under `"socket"` to prevent alert fatigue from static analysis tools.
 
 ---
 
-## Deployment Best Practices
+## Reporting a Vulnerability
 
-- **API Key Management**: When utilizing LLM adapters, load API keys via environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) or secure secret managers. Never hardcode keys in source code.
-- **Least Privilege**: Run MCP servers and parser processes with the minimum OS privileges necessary.
-- **Feed Validation**: If allowing end-users to input feed URLs, enforce DNS/IP resolution filtering (e.g., preventing access to private local ranges like `127.0.0.1` or `192.168.x.x`) at the network layer.
+Please **do not open a public GitHub issue** for security vulnerabilities.
+
+1. Email **security@bluecarbons.io** with the subject line `[agentic-rss-parser] Security Vulnerability`.
+2. Include:
+   - A description of the vulnerability and its impact.
+   - Steps to reproduce or a proof-of-concept.
+   - The affected version(s).
+3. You will receive an acknowledgement within **48 hours** and a patch timeline within **7 days**.
+
+---
+
+## Disclosure Policy
+
+- We follow **coordinated disclosure**: fixes are prepared and released before public disclosure.
+- CVEs are filed where appropriate.
+- The [CHANGELOG.md](./CHANGELOG.md) documents all security fixes under a `### Security` heading with the exact file and line-level description of the fix.
