@@ -34,17 +34,6 @@ function sanitizeForPrompt(str, maxLen) {
 /**
  * createAnalyzer — builds an analyzer function for the given provider config.
  *
- * SECURITY NOTE (socket.dev): This module intentionally accesses environment
- * variables and makes outbound network requests. Both are expected, documented
- * behaviour for an LLM-backed feed analysis library:
- *
- *   process.env.OPENAI_API_KEY    — user-supplied OpenAI API key
- *   process.env.ANTHROPIC_API_KEY — user-supplied Anthropic API key
- *
- * Keys are NEVER logged, stored, or forwarded anywhere other than the
- * respective provider's official API endpoint.
- * Users can pass `apiKey` directly in config to avoid env var usage.
- *
  * @param {object} config
  * @param {'heuristic'|'openai'|'anthropic'|'local'} [config.provider='heuristic']
  * @param {string} [config.model]
@@ -142,13 +131,13 @@ Only output valid JSON.`;
     if (provider === 'openai' || provider === 'local') {
       const url = baseURL || (provider === 'local' ? 'http://localhost:11434/v1' : 'https://api.openai.com/v1');
       const endpoint = `${url.replace(/\/$/, '')}/chat/completions`;
-      const resolvedKey = apiKey || (provider === 'local' ? 'local' : process.env.OPENAI_API_KEY || '');
+      const resolvedKey = apiKey || (provider === 'local' ? 'local' : '');
 
       // SECURITY: fail fast with a clear message rather than sending an
       // empty Bearer token and getting a cryptic 401 from the provider.
       if (provider === 'openai' && !resolvedKey) {
         throw new Error(
-          'OpenAI API key is required. Set OPENAI_API_KEY env var or pass config.apiKey.'
+          'OpenAI API key is required. Pass config.apiKey.'
         );
       }
 
@@ -185,12 +174,12 @@ Only output valid JSON.`;
     if (provider === 'anthropic') {
       const url = baseURL || 'https://api.anthropic.com/v1';
       const endpoint = `${url.replace(/\/$/, '')}/messages`;
-      const resolvedKey = apiKey || process.env.ANTHROPIC_API_KEY || '';
+      const resolvedKey = apiKey || '';
 
       // SECURITY: fail fast with a clear message.
       if (!resolvedKey) {
         throw new Error(
-          'Anthropic API key is required. Set ANTHROPIC_API_KEY env var or pass config.apiKey.'
+          'Anthropic API key is required. Pass config.apiKey.'
         );
       }
 

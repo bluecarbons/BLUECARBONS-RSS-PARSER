@@ -65,7 +65,7 @@ This mitigates XSS if `contentSnippet` is rendered as HTML by a downstream consu
 ### Supply-Chain
 
 - **Zero production dependencies** — the entire production surface is auditable in this single repository. There are no transitive packages that could introduce a supply-chain compromise.
-- **`socket.dev` false positives suppressed** — intentional `process.env` access (LLM API keys) and outbound network calls (LLM providers) are declared in `package.json` under `"socket"` to prevent alert fatigue from static analysis tools.
+- **`socket.dev` false positives suppressed** — outbound network calls to provider APIs are declared in `package.json` under `"socket"` to prevent alert fatigue from static analysis tools. The code now avoids direct environment-variable reads in the provider layer.
 
 ---
 

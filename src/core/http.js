@@ -1,12 +1,7 @@
-import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-
-const require = createRequire(import.meta.url);
-const { version: PKG_VERSION } = require(join(dirname(fileURLToPath(import.meta.url)), '../../package.json'));
+import pkg from '../../package.json' with { type: 'json' };
 
 // Default User-Agent string. Callers can override via options.userAgent or options.headers['user-agent'].
-const DEFAULT_USER_AGENT = `agentic-rss-parser/${PKG_VERSION}`;
+const DEFAULT_USER_AGENT = `agentic-rss-parser/${pkg.version}`;
 
 // Hard cap on response body size (5 MB). Prevents OOM on unexpectedly large
 // or malicious feed responses.

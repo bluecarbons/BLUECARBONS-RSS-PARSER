@@ -1,10 +1,7 @@
 #!/usr/bin/env node
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { join, dirname, resolve } from 'node:path';
 import { runAgenticParser } from './parser.js';
-
-const _require = createRequire(import.meta.url);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Default DB path resolved relative to this file — CWD-independent.

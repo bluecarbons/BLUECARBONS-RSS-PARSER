@@ -1,16 +1,14 @@
 #!/usr/bin/env node
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 import readline from 'node:readline';
 import { runAgenticParser } from '../parser.js';
 import { createAnalyzer } from '../adapters/provider.js';
 import { fetchFullArticle } from '../fetch-article.js';
-
-const require = createRequire(import.meta.url);
+import pkg from '../../package.json' with { type: 'json' };
 
 // Version read from package.json — never hardcoded.
-const { version: PKG_VERSION } = require('../../package.json');
+const { version: PKG_VERSION } = pkg;
 
 // DB path resolved relative to this file so the server works correctly
 // regardless of CWD when launched by Claude Desktop, Cursor, or any MCP host.
