@@ -25,14 +25,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
       - name: Setup Node ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: pnpm
-
-      - name: Enable corepack (pnpm)
-        run: corepack enable
 
       # --ignore-scripts prevents lifecycle scripts in dependencies from
       # running during install — supply-chain safety best practice.

@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 --- 
 
+## [1.2.3] — 2026-06-27
+
+### Fixed
+
+- GitHub Actions now installs pnpm explicitly before running install, lint, test, audit, and pack steps.
+
 ## [1.2.1] — 2026-06-27
 
 ### Fixed
