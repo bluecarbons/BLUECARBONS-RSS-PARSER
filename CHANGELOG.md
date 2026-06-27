@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 --- 
 
+## [1.3.1] — 2026-06-27
+
+### Fixed
+
+- Removed example files from the npm tarball to reduce bundle-analysis noise and keep the published package focused on runtime code.
+
 ## [1.3.0] — 2026-06-27
 
 ### Security
