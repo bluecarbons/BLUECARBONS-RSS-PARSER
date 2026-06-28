@@ -337,6 +337,25 @@ Returns `{ results: Array<{ item, analysis }>, feedErrors: FeedError[] }`.
 
 ---
 
+### `createStorage(dbPath)`
+
+Instantiates a SQLite-backed storage database helper.
+
+Returns an object with database operations:
+
+- `hasProcessed(id)`: Returns a boolean indicating if a feed item hash was already processed.
+- `markProcessed(item)`: Saves a feed item to the `processed_items` cache table.
+- `saveAnalysis(itemId, analysis)`: Saves structured analysis results for an item.
+- `getAnalyses(options?)`: Query stored analyses with optional filtering and pagination. Returns `StorageAnalysisRow[]`.
+  - `options.feedUrl`: Filter to a specific feed URL.
+  - `options.decision`: Filter by decision (`'relevant'` or `'ignore'`).
+  - `options.limit`: Max rows to return (default: 50, max: 1000).
+  - `options.offset`: Offset for pagination.
+- `pruneOlderThan(ttlDays)`: Delete cache entries and analyses older than `ttlDays` (must be `> 0`). Returns `{ deletedItems: number, deletedAnalyses: number }`.
+- `close()`: Closes the SQLite database connection.
+
+---
+
 ### `heuristicAnalyze(item, context?, options?)`
 
 Direct heuristic analysis. No async, no API key.

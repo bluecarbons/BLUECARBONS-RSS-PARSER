@@ -165,7 +165,7 @@ function asArray(value) {
  * Inline event handlers (onerror=, onclick=, etc.) are neutralised by
  * removing all remaining tags after the block removal pass.
  */
-function stripHtml(html = '') {
+export function stripHtml(html = '') {
   return String(html)
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
